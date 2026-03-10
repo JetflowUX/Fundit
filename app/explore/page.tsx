@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, SlidersHorizontal } from "lucide-react";
 import ProjectCard from "@/components/ProjectCard";
 import { PROJECTS, ProjectCategory, ProjectStatus } from "@/lib/data";
+import { getAllCreatedProjects } from "@/lib/storage";
 
 const categories: (ProjectCategory | "All")[] = ["All", "DeFi", "Education", "Infrastructure", "NFT", "Community", "Governance"];
 const statuses: (ProjectStatus | "All")[] = ["All", "Idea", "Building", "Live", "Completed"];
@@ -13,8 +14,15 @@ export default function ExplorePage() {
   const [category, setCategory] = useState<string>("All");
   const [status, setStatus] = useState<string>("All");
   const [sort, setSort] = useState("Trending");
+  const [allProjects, setAllProjects] = useState<any[]>(PROJECTS);
 
-  const filtered = PROJECTS.filter((p) => {
+  useEffect(() => {
+    // Merge default projects with user-created ones
+    const userProjects = getAllCreatedProjects();
+    setAllProjects([...PROJECTS, ...userProjects]);
+  }, []);
+
+  const filtered = allProjects.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.shortDescription.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "All" || p.category === category;

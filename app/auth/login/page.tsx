@@ -1,8 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Wallet, Mail } from "lucide-react";
+import { useWallet } from "@/lib/wallet-context";
+
+const walletConfig = [
+  { key: "lace", name: "Lace Wallet", color: "#0033AD" },
+  { key: "nami", name: "Nami Wallet", color: "#7C3AED" },
+  { key: "eternl", name: "Eternl Wallet", color: "#059669" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,13 +18,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { connected, connecting, connectWallet, availableWallets, error } = useWallet();
 
-  const handleLogin = () => {
+  // Redirect to dashboard if wallet is connected
+  useEffect(() => {
+    if (connected) {
+      router.push("/dashboard");
+    }
+  }, [connected, router]);
+
+  const handleEmailLogin = () => {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       router.push("/dashboard");
     }, 1500);
+  };
+
+  const handleWalletConnect = async (walletKey: string) => {
+    try {
+      await connectWallet(walletKey);
+      // Router push will be handled by useEffect when connected becomes true
+    } catch (err) {
+      console.error("Failed to connect:", err);
+    }
   };
 
   return (
@@ -84,7 +108,7 @@ export default function LoginPage() {
                 </div>
               </div>
               <button
-                onClick={handleLogin}
+                onClick={handleEmailLogin}
                 disabled={loading}
                 className="w-full py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 disabled:opacity-60"
                 style={{ background: "linear-gradient(135deg, #0033AD, #00C6FF)" }}
@@ -96,29 +120,45 @@ export default function LoginPage() {
 
           {mode === "wallet" && (
             <div className="space-y-3">
-              {[
-                { name: "Lace Wallet", color: "#0033AD" },
-                { name: "Nami Wallet", color: "#7C3AED" },
-                { name: "Eternl Wallet", color: "#059669" },
-              ].map((wallet) => (
-                <button
-                  key={wallet.name}
-                  onClick={handleLogin}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all hover:bg-white/5"
-                  style={{ borderColor: "#374151" }}
-                >
-                  <div className="w-10 h-10 rounded-xl" style={{ background: wallet.color + "33" }}>
-                    <div className="w-full h-full rounded-xl flex items-center justify-center">
-                      <Wallet size={20} style={{ color: wallet.color }} />
-                    </div>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-white font-medium text-sm">{wallet.name}</p>
-                    <p className="text-xs" style={{ color: "#9CA3AF" }}>Connect via CIP-30</p>
-                  </div>
-                  <div className="ml-auto" style={{ color: "#374151" }}>→</div>
-                </button>
-              ))}
+              {availableWallets.length > 0 ? (
+                <>
+                  {availableWallets.map((wallet) => {
+                    const config = walletConfig.find(w => w.key === wallet.key) || { key: wallet.key, name: wallet.name, color: "#0033AD" };
+                    return (
+                      <button
+                        key={wallet.key}
+                        onClick={() => handleWalletConnect(wallet.key)}
+                        disabled={connecting}
+                        className="w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all hover:bg-white/5 disabled:opacity-50"
+                        style={{ borderColor: "#374151" }}
+                      >
+                        <div className="w-10 h-10 rounded-xl" style={{ background: config.color + "33" }}>
+                          <div className="w-full h-full rounded-xl flex items-center justify-center">
+                            <Wallet size={20} style={{ color: config.color }} />
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <p className="text-white font-medium text-sm">{config.name}</p>
+                          <p className="text-xs" style={{ color: "#9CA3AF" }}>Connect via CIP-30</p>
+                        </div>
+                        <div className="ml-auto" style={{ color: "#374151" }}>→</div>
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-sm text-[#9CA3AF] mb-2">No Cardano wallets detected</p>
+                  <p className="text-xs text-[#6B7280]">
+                    Please install Lace, Nami, or Eternl wallet extension to continue
+                  </p>
+                </div>
+              )}
+              {error && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
             </div>
           )}
 

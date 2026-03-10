@@ -1,15 +1,20 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowLeft, Plus, X, CheckCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, Plus, X, CheckCircle, Wallet as WalletIcon } from "lucide-react";
+import { useWallet } from "@/lib/wallet-context";
+import { saveCreatedProject, getOrCreateUserProfile } from "@/lib/storage";
+import Link from "next/link";
 
 const categories = ["DeFi", "Education", "Infrastructure", "NFT", "Community", "Gaming", "Governance"];
 const statuses = ["Idea", "Building", "Live", "Completed"];
 
 export default function CreateProjectPage() {
   const router = useRouter();
+  const { connected, walletAddress } = useWallet();
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     shortDescription: "",
@@ -25,11 +30,79 @@ export default function CreateProjectPage() {
     teamMembers: [{ name: "", role: "" }],
   });
 
+  useEffect(() => {
+    if (connected && walletAddress) {
+      setForm((prev) => ({ ...prev, walletAddress }));
+    }
+  }, [connected, walletAddress]);
+
   const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = () => {
-    setTimeout(() => setSubmitted(true), 1000);
+    if (!walletAddress) {
+      alert("Please connect your wallet first");
+      return;
+    }
+
+    setSaving(true);
+
+    // Create project object
+    const newProject = {
+      id: Date.now().toString(),
+      name: form.name,
+      shortDescription: form.shortDescription,
+      longDescription: form.fullDescription,
+      category: form.category as any,
+      status: form.status as any,
+      fundingGoal: parseFloat(form.fundingGoal) || 0,
+      fundingRaised: 0,
+      supportersCount: 0,
+      rating: 0,
+      image: "https://images.unsplash.com/photo-1639322537504-6427a16b0a28?w=400&auto=format",
+      creator: walletAddress,
+      createdAt: Date.now(),
+      links: {
+        github: form.github,
+        website: form.website,
+        twitter: form.twitter,
+      },
+      team: form.teamMembers.filter((m) => m.name),
+      milestones: form.milestones.filter((m) => m.title),
+    };
+
+    // Save to localStorage
+    saveCreatedProject(newProject, walletAddress);
+
+    setTimeout(() => {
+      setSaving(false);
+      setSubmitted(true);
+    }, 1000);
   };
+
+  if (!connected || !walletAddress) {
+    return (
+      <div className="pt-16 min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(0,51,173,0.1)" }}>
+            <WalletIcon size={32} style={{ color: "#4DA6FF" }} />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            Connect Your Wallet
+          </h2>
+          <p className="text-[#9CA3AF] mb-6">
+            Please connect your Cardano wallet to create a project. Your wallet address will be used as the project creator and funding recipient.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90"
+            style={{ background: "linear-gradient(135deg, #0033AD, #00C6FF)" }}
+          >
+            Go to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -174,10 +247,11 @@ export default function CreateProjectPage() {
                   value={form.walletAddress}
                   onChange={(e) => update("walletAddress", e.target.value)}
                   placeholder="addr1q..."
-                  className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 border focus:outline-none font-mono text-sm"
-                  style={{ background: "#111827", borderColor: "#374151" }}
+                  readOnly
+                  className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-500 border focus:outline-none font-mono text-sm bg-gray-800 cursor-not-allowed"
+                  style={{ borderColor: "#374151" }}
                 />
-                <p className="text-xs mt-2" style={{ color: "#9CA3AF" }}>This is the Cardano wallet address that will receive funding contributions.</p>
+                <p className="text-xs mt-2" style={{ color: "#9CA3AF" }}>This is your connected wallet address. All funding contributions will be sent here.</p>
               </div>
               <div className="rounded-xl p-4 border" style={{ background: "rgba(0,51,173,0.1)", borderColor: "rgba(0,51,173,0.3)" }}>
                 <p className="text-sm" style={{ color: "#4DA6FF" }}>
@@ -371,9 +445,10 @@ export default function CreateProjectPage() {
             ) : (
               <button
                 onClick={handleSubmit}
-                className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
+                disabled={saving || !form.name || !form.fundingGoal}
+                className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: "linear-gradient(135deg, #0033AD, #00C6FF)" }}>
-                Launch Project 🚀
+                {saving ? "Creating..." : "Launch Project 🚀"}
               </button>
             )}
           </div>
